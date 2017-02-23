@@ -9,11 +9,18 @@ var denormalize = require('../src').denormalize;
 var immutable = require('immutable');
 var fromJS = immutable.fromJS;
 var Map = immutable.Map;
+var Record = immutable.Record;
+var List = immutable.List;
 
 var normalizr = require('normalizr');
 var normalize = normalizr.normalize;
 var Schema = normalizr.Schema;
 var arrayOf = normalizr.arrayOf;
+
+var normalizrImmutable = require('normalizr-immutable');
+var immutableNormalize = normalizrImmutable.normalize;
+var ImmutableSchema = normalizrImmutable.Schema;
+var immutableArrayOf = normalizrImmutable.arrayOf;
 
 describe('denormalizr', function () {
 
@@ -77,6 +84,76 @@ describe('denormalizr', function () {
     var entities = fromJS(normalized.entities);
 
     var denormalized = denormalize(entities.get('articles'), entities, arrayOf(baseSchema.article));
+
+    denormalized.toList().toJS().should.eql(articles);
+  });
+
+  /* normalizr-immutable tests */
+
+  /* Immutable Records - required parameter for normalizr-immutable's Schema */
+  var Article = new Record({
+    id: null,
+    title: null,
+    author: null,
+    comments: null
+  });
+  var Author = new Record({
+    id: null,
+    name: null
+  });
+  var Comment = new Record({
+    id: null,
+    message: null,
+    author: null
+  });
+
+  /* normalizr-immutable base schema */
+  var immutableBaseSchema = {
+    article: new ImmutableSchema('articles', Article),
+    author: new ImmutableSchema('authors', Author),
+    comment: new ImmutableSchema('comments', Comment)
+  };
+  immutableBaseSchema.article.define({
+    author: immutableBaseSchema.author,
+    comments: immutableArrayOf(immutableBaseSchema.comment)
+  });
+  immutableBaseSchema.comment.define({
+    author: immutableBaseSchema.author
+  });
+  
+  it('can denormalize a normalizr-immutable entity record', function () {
+
+    var articles = generateArticles();
+    Object.freeze(articles);
+    var normalized = immutableNormalize(articles, immutableArrayOf(immutableBaseSchema.article));
+    var entities = normalized.entities;
+
+    var article = entities.get('articles').get('0');
+    var denormalized = denormalize(article, entities, immutableBaseSchema.article);
+
+    denormalized.toJS().should.eql(articles[0]);
+  });
+
+  it('can denormalize an array of normalizr-immutable entity records', function () {
+
+    var articles = generateArticles();
+    Object.freeze(articles);
+    var normalized = immutableNormalize(articles, immutableArrayOf(immutableBaseSchema.article));
+    var entities = normalized.entities;
+
+    var denormalized = denormalize(entities.get('articles'), entities, immutableArrayOf(immutableBaseSchema.article));
+
+    denormalized.toList().toJS().should.eql(articles);
+  });
+
+  it('can denormalize an array of normalizr-immutable entities with { useMapsForEntityObjects: true }', function () {
+
+    var articles = generateArticles();
+    Object.freeze(articles);
+    var normalized = immutableNormalize(articles, immutableArrayOf(immutableBaseSchema.article), { useMapsForEntityObjects: true });
+    var entities = normalized.entities;
+
+    var denormalized = denormalize(entities.get('articles'), entities, immutableArrayOf(immutableBaseSchema.article));
 
     denormalized.toList().toJS().should.eql(articles);
   });
